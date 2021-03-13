@@ -22,17 +22,17 @@ float dist_prev;
 int min_dist;                     // расстояние до препятствия, при котором машинка останавливается
 
 // параметры регулятора
-float kp;
-float ki;
-float kd;
+float kp = 5;
+float ki = 2;
+float kd = 0;
 
-int dt;
+int dt = 50;
 
 unsigned long prevTime = 4000; // задаем паузу перед началом движения, чтобы колебание измерений IMU после старта
 int course;                    // курс в градусах, по которому будем двигаться
-int target_speed;              // скорость движения
-int minOut;                    // минимальная скорость
-int maxOut;                    // максимальная скорость
+int target_speed = 110;              // скорость движения
+int minOut = 0;                    // минимальная скорость
+int maxOut = 200;                    // максимальная скорость
 
 void setup() {
   
@@ -45,15 +45,16 @@ void setup() {
   // ультразвук
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
-  k = ;
-  dist_prev = ;
+  k = 0.5;
+  dist_prev = 0.0;
+  min_dist = 30;
 
   // моторы
   setup_motors_pin();
   stop_motors();
 
   // задаем курс в градусах, по которому будем двигаться
-  course = ;
+  course = 0;
 
 }
 
@@ -80,6 +81,7 @@ void loop() {
       
       // TODO: Задание 1 - остановка машинки
       // остановка
+      stop_motors();
 
       
       // TODO: Задание 3 - разворот на новый курс
@@ -121,6 +123,20 @@ int computePID(float input, float setpoint, float kp, float ki, float kd, float 
 
   // TODO: написать код П или ПИ или ПИД регулятора
   // https://alexgyver.ru/gyverpid/
+  
+  // П
+  float err = setpoint - input;
+
+  // И
+  static float integral = 0;
+  integral = constrain(integral + err * dt * ki, minOut, maxOut);
+
+  // Д
+  static float prevErr = 0;
+  float diff = (err - prevErr) / dt;
+  prevErr = err;
+  
+  int output = constrain(err * kp + integral + diff * kd, minOut, maxOut);
    
   return output;
 }
@@ -147,13 +163,15 @@ void control_motors(int pwm_l, int pwm_r) {
 void course_control(float heading, float course) {
 
   
-  //int dir = 0;   // направление подруливания: 1 = вправо, -1 = влево, 0 = ??? 
-  //int regulator; // результат выполнения функции computePID()
+  int dir = 0;   // направление подруливания: 1 = вправо, -1 = влево, 0 = ??? 
+  int regulator; // результат выполнения функции computePID()
 
   // TODO: Задание 1 - написать код езды по линии для курса = 0
   
-  // regulator = ;
-  // dir = ;
+  regulator = computePID(heading, course, kp, ki, kd, dt, minOut, maxOut);
+  if (heading > course) dir = -1;// готовимся подруливать влево
+  else if (heading < course) dir = 1;// готовимся подруливать вправо
+  
   
 
   // TODO: Задание 2 - написать код езды по линии для разных значений курса
@@ -177,13 +195,16 @@ void course_control(float heading, float course) {
     //dir = ;
   //}
     
-  //if (dir == -1) { 
+  if (dir == -1) { 
     // подруливаем влево 
-  //}
+    control_motors(constrain(target_speed - abs(regulator), minOut, maxOut), constrain(target_speed + abs(regulator), minOut, maxOut));
+    
+  }
   
-  //else if (dir == 1) { 
+  else if (dir == 1) { 
     // подруливаем вправо
-  //}
+    control_motors(constrain(target_speed + abs(regulator), minOut, maxOut), constrain(target_speed - abs(regulator), minOut, maxOut));
+  }
   
   // отладка:
   //Serial.print(constrain(target_speed - abs(regulator), minOut, maxOut)); Serial.print(", ");
